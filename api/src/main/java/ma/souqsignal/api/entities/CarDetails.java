@@ -15,6 +15,8 @@ import lombok.Setter;
 @PrimaryKeyJoinColumn(name = "id_signal")
 public class CarDetails extends MarketSignal {
     private Long kilometrage;
-    private int modele;
+    private String marque;
+    private String modele;
+    private Integer anneeModele;
     private String carburant;
 }
