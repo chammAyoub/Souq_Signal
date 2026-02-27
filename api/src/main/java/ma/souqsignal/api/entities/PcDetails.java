@@ -8,16 +8,15 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "car_details")
+@Table(name = "pc_details")
 @Getter
 @Setter
 @NoArgsConstructor
 @PrimaryKeyJoinColumn(name = "id_signal")
-public class CarDetails extends MarketSignal {
+public class PcDetails extends MarketSignal {
     private String marque;
-    private String modele;
-    private Integer anneeModele;
-    private Long kilometrage;
-    private String carburant;
-    private String boiteVitesse;
+    private String processeur;
+    private Integer ram;
+    private Integer stockage;
+    private String typeStockage;
 }
