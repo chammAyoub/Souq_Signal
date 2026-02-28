@@ -8,15 +8,15 @@ import java.time.LocalDateTime;
 
 
 @Entity
-@Table(name = "market_signal")
+@Table(name = "annonce_base")
 @Inheritance(strategy = InheritanceType.JOINED)
 @Getter
 @Setter
 @NoArgsConstructor
-public abstract class MarketSignal {
+public abstract class AnnonceBase {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long idSignal;
+    private Long idAnnoce;
     private String titreAnnonce;
     private Double prix;
     private String ville;

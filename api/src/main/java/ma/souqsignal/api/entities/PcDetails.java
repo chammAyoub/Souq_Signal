@@ -12,8 +12,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@PrimaryKeyJoinColumn(name = "id_signal")
-public class PcDetails extends MarketSignal {
+@PrimaryKeyJoinColumn(name = "id_annonce")
+public class PcDetails extends AnnonceBase {
     private String marque;
     private String processeur;
     private Integer ram;

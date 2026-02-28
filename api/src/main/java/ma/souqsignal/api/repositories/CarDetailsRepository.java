@@ -11,12 +11,13 @@ import java.util.List;
 @Repository
 public interface CarDetailsRepository extends JpaRepository<CarDetails, Long> {
 
-    // JPQL k-y-khdem b smyat lClasses (CarDetails) machi tables
+    // prix moyenne par marque, modele, annee
     @Query("SELECT AVG(c.prix) FROM CarDetails c WHERE c.marque = :marque AND c.modele = :modele AND c.anneeModele = :annee")
     Double findAveragePriceByCar(@Param("marque") String marque,
                                  @Param("modele") String modele,
                                  @Param("annee") Integer annee);
 
 
-    List<CarDetails> findByMarqueAndModeleAndPriceLessThan(String marque, String modele, Double prixMax);
+
+    List<CarDetails> findByMarqueAndModeleAndPrixLessThan(String marque, String modele, Double prixMax);
 }

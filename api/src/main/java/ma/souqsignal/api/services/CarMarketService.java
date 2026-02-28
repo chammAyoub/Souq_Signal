@@ -40,10 +40,11 @@ public class CarMarketService {
 
     // Meilleures offres
     public List<CarDetails> getOpportunitesArbitrage(String marque, String modele, Integer annee){
-        Double MarketValue = getCarMarketValue(marque, modele, annee);
+        Double valeurMarche = getCarMarketValue(marque, modele, annee);
+        Double prixMax = valeurMarche - (valeurMarche * 0.15);
 
-        Double MaxPrice = MarketValue - (MarketValue * 0.15);
-        return carDetailsRepository.findByMarqueAndModeleAndPriceLessThan(marque, modele, MaxPrice);
+        // On appelle la méthode avec "PrixLessThan".
+        return carDetailsRepository.findByMarqueAndModeleAndPrixLessThan(marque, modele, prixMax);
     }
 
 
