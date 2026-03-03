@@ -12,4 +12,6 @@ public interface MarketInsightRepository extends JpaRepository<MarketInsight, Lo
 
     // on cherche le plus récent pour une catégorie bien précise
     Optional<MarketInsight> findFirstByCategorieOrderByDateCreationDesc(String categorie);
+
+    List<MarketInsight> findAllByOrderByDateCreationDesc();
 }

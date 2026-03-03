@@ -39,7 +39,7 @@ public class MarketInsightService {
     }
 
     public List<MarketInsight> getAllInsights(){
-        return marketInsightRepository.findAll();
+        return marketInsightRepository.findAllByOrderByDateCreationDesc();
     }
 
     public MarketInsight getMarketInsightById(Long id){
