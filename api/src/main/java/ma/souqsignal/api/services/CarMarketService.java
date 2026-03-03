@@ -26,7 +26,7 @@ public class CarMarketService {
 
     public CarDetails getCarDetailsById(Long id){
         return carDetailsRepository.findById(id)
-                .orElseThrow(()-> new RuntimeException("Car with ID \" + id + \" not found in the market data."));
+                .orElseThrow(()-> new RuntimeException("Car with ID "+ id +" not found in the market data."));
     }
 
     public Double getCarMarketValue(String marque, String modele, Integer annee){

@@ -37,4 +37,13 @@ public class MarketInsightService {
     public MarketInsight saveNouvelInsight(MarketInsight insight) {
         return marketInsightRepository.save(insight);
     }
+
+    public List<MarketInsight> getAllInsights(){
+        return marketInsightRepository.findAll();
+    }
+
+    public MarketInsight getMarketInsightById(Long id){
+        return marketInsightRepository.findById(id)
+                .orElseThrow(()-> new RuntimeException("Insight with ID "+ id +" not found in the market insights data."));
+    }
 }
