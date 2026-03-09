@@ -16,9 +16,9 @@ public class CarMarketController {
     private final CarMarketService carMarketService;
 
     @PostMapping("/sauvegarder")
-    public ResponseEntity<CarDetails> saveCarSignal(@RequestBody CarDetails cardetails){
-        CarDetails saveCarDetails = carMarketService.saveCarSignal(cardetails);
-        return new ResponseEntity<>(saveCarDetails, HttpStatus.CREATED);
+    public ResponseEntity<List<CarDetails>> saveCarSignal(@RequestBody List<CarDetails> cardetails) {
+        List<CarDetails> savedCarDetails = carMarketService.saveCarSignal(cardetails);
+        return new ResponseEntity<>(savedCarDetails, HttpStatus.CREATED);
     }
 
     @GetMapping("/opportunites")

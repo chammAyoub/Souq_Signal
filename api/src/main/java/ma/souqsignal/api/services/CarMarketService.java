@@ -12,8 +12,8 @@ import java.util.List;
 public class CarMarketService {
     private final CarDetailsRepository carDetailsRepository;
 
-    public CarDetails saveCarSignal(CarDetails carDetails){
-        return carDetailsRepository.save(carDetails);
+    public List<CarDetails> saveCarSignal(List<CarDetails> carDetails) {
+        return carDetailsRepository.saveAll(carDetails);
     }
 
     public void deleteCarSignal(Long id){
