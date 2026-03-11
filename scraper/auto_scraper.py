@@ -18,22 +18,16 @@ def nettoyer_modele(titre):
 
     titre_clean = titre.lower()
 
-    # 1. N-7iydou les emojis manuellement
     titre_clean = titre_clean.replace("✋", "").replace("1✋", "")
 
-    # 2. 🌟 L-FIX HNA: N-ms7ou ghir l-klamat l-m3zoula (Word Boundaries)
     for mot in mots_a_supprimer:
-        # \b k-t-3ni "7doud l-kelma". Bhal haka k-n-t2kkdou anana k-n-ms7ou " a " machi l-"a" f "Fiat"
         pattern = r'\b' + re.escape(mot) + r'\b'
         titre_clean = re.sub(pattern, ' ', titre_clean)
 
-    # 3. N-7iydou les années (ex: 2022, 2019)
     titre_clean = re.sub(r'\b20[1-2][0-9]\b', ' ', titre_clean)
 
-    # 4. N-7iydou les caractères spéciaux
     titre_clean = re.sub(r'[^\w\s-]', ' ', titre_clean)
 
-    # 5. N-n9iyou les espaces w n-rddou l-Majuscule
     return " ".join(titre_clean.split()).title()
 # ==========================================
 # ==========================================
@@ -47,7 +41,7 @@ if not url_cible:
 
 print(f"🔍 Tentative de connexion à la cible 1 ({url_cible})...")
 
-with StealthySession(headless=True, solve_cloudflare=True) as session:
+with StealthySession(headless=False, solve_cloudflare=True) as session:
     page = session.fetch(url_cible)
 
     print("✅ Connexion réussie à la plateforme !")
@@ -121,7 +115,6 @@ with StealthySession(headless=True, solve_cloudflare=True) as session:
                     km_float = float(km_propre)
 
             titres_vus.add(titre)
-
             # 6. CONSTRUCTION DE L'OBJET FINAL
             vehicule_obj = {
                 "titreAnnonce": titre,
@@ -138,8 +131,7 @@ with StealthySession(headless=True, solve_cloudflare=True) as session:
 
             vehicules_valides.append(vehicule_obj)
             print(f"✅ {vehicule_obj['marque']} {vehicule_obj['modele']} | {prix_float} DH | {annee}")
-
-            if len(vehicules_valides) == 5:
+            if len(vehicules_valides) >= 35:
                 break
 
         except ValueError:
@@ -147,6 +139,8 @@ with StealthySession(headless=True, solve_cloudflare=True) as session:
 
     print("\n" + "="*50)
     print("🚀 INTÉGRATION SPRING BOOT : Envoi des données vers le Backend...")
+
+
 
     api_url = os.getenv("API_BACKEND_URL")
 
