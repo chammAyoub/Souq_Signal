@@ -48,68 +48,82 @@ except Exception as e:
     exit()
 
 # ==========================================
-# 3. INTELLIGENCE ARTIFICIELLE : PANDAS
+# 3. INTELLIGENCE ARTIFICIELLE : PANDAS (Mode Réel)
 # ==========================================
-print("\n🧹 Nettoyage des données (Suppression des locations et faux prix)...")
-# On supprime tout ce qui est en dessous de 20 000 DH (Locations, Vélos, Traites mensuelles)
+print("\n🧹 Nettoyage des données...")
 df_voitures = df_voitures[df_voitures['prix'] > 20000]
-
-# On supprime les fausses marques détectées
 fausses_marques = ['location', 'offre', 'vélo', 'quad', 'neuf', 'meilleur', 'meilleurs']
 df_voitures = df_voitures[~df_voitures['marque'].str.lower().isin(fausses_marques)]
 
-print("🧠 Analyse des données et recherche de Hmizat...")
+print("🧠 Analyse des données et recherche de Hmizas réelles...")
 
-# On calcule le prix médian
+# 🌟 LE VRAI CERVEAU : On calcule la médiane pour chaque modèle et année spécifiques
 df_voitures['prix_median'] = df_voitures.groupby(['marque', 'modele', 'annee_modele'])['prix'].transform('median')
 
-# On calcule l'écart
+# On calcule le vrai écart en pourcentage
 df_voitures['ecart_pourcentage'] = ((df_voitures['prix'] - df_voitures['prix_median']) / df_voitures['prix_median']) * 100
 
-# On cherche les Hmizas à -10% pour tester,
-# et on s'assure qu'on ne compare pas une voiture toute seule (prix != prix_median)
-hmizas = df_voitures[(df_voitures['ecart_pourcentage'] <= -10) & (df_voitures['prix'] != df_voitures['prix_median'])]
+# On cherche les VRAIES Hmizas (au moins 15% moins chères que le marché)
+hmizas = df_voitures[(df_voitures['ecart_pourcentage'] <= -15) & (df_voitures['prix'] != df_voitures['prix_median'])]
 
 if hmizas.empty:
-    print("🤷‍♂️ Aucune Hmiza détectée pour le moment.")
-    print("💡 Astuce : Laisse le scraper tourner sur 20 pages pour avoir plus de Data !")
+    print("🤷‍♂️ Aucune Hmiza réelle détectée pour le moment.")
+    print("💡 Le Bot a besoin de scraper plus de données pour comparer les prix d'un même modèle.")
 else:
     print("-" * 50)
-    print(f"🎯 {len(hmizas)} HMIZAS DÉTECTÉES !")
-    print(hmizas[['marque', 'modele', 'annee_modele', 'prix', 'prix_median', 'ecart_pourcentage']].to_string(index=False))
+    print(f"🎯 {len(hmizas)} VRAIES HMIZAS DÉTECTÉES !")
     print("-" * 50)
 
     # ==========================================
-    # 4. INTELLIGENCE ARTIFICIELLE : GEMINI
+    # 4. INTELLIGENCE ARTIFICIELLE : GEMINI ET SPRING BOOT
     # ==========================================
+    import requests
+
     if gemini_api_key:
         client = genai.Client(api_key=gemini_api_key)
 
-        # On prend la meilleure hmiza (celle avec le plus grand écart négatif)
+        # On prend la meilleure Hmiza (celle avec le plus grand écart négatif)
         top_hmiza = hmizas.sort_values(by='ecart_pourcentage').iloc[0]
 
         prompt = f"""
-        Tu es un expert automobile au Maroc. Analyse cette opportunité réelle tirée de la base de données :
+        Tu es un expert automobile au Maroc. Analyse cette opportunité réelle :
         - Véhicule : {top_hmiza['marque']} {top_hmiza['modele']} ({top_hmiza['annee_modele']})
-        - Prix demandé : {top_hmiza['prix']} DH
-        - Prix médian du marché : {top_hmiza['prix_median']} DH
+        - Prix : {top_hmiza['prix']} DH (Médiane: {top_hmiza['prix_median']} DH)
         - Écart : {abs(round(top_hmiza['ecart_pourcentage']))}% moins cher.
         - Ville : {top_hmiza['ville']}
         
-        Rédige un "Market Insight" très court et percutant (2 phrases maximum) pour le Dashboard d'un investisseur. Parle en français.
+        Rédige une description très courte et percutante (2 phrases max) pour un investisseur. Parle en français.
         """
 
-        print(f"\n🤖 Envoi de la {top_hmiza['marque']} {top_hmiza['modele']} à Gemini pour rédaction...")
+        print(f"\n🤖 Envoi de la {top_hmiza['marque']} {top_hmiza['modele']} à Gemini...")
         try:
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt
             )
-            print("\n✨ INSIGHT GÉNÉRÉ PAR L'IA :")
+            texte_insight = response.text.strip()
+            print("\n✨ INSIGHT GÉNÉRÉ :")
             print(">" * 20)
-            print(response.text.strip())
+            print(texte_insight)
             print("<" * 20)
+
+            print("\n🚀 Sauvegarde de l'Insight dans Spring Boot...")
+            insight_payload = {
+                "pourcentage": f"-{abs(int(top_hmiza['ecart_pourcentage']))}%",
+                "titreRapide": f"Hmiza : {top_hmiza['marque']} {top_hmiza['modele']}",
+                "description": texte_insight,
+                "categorie": "Auto"
+            }
+
+            api_url = "http://localhost:8080/api/v1/insights"
+            res = requests.post(api_url, json=insight_payload)
+
+            if res.status_code == 201:
+                print("✅ BINGO ! L'Insight a été sauvegardé avec succès dans PostgreSQL !")
+            else:
+                print(f"❌ Erreur Spring Boot (Statut {res.status_code}) : {res.text}")
+
         except Exception as e:
-            print(f"❌ Erreur avec Gemini : {e}")
+            print(f"❌ Erreur (Gemini ou Réseau) : {e}")
     else:
-        print("⚠️ Clé GEMINI_API_KEY introuvable dans le fichier .env !")
+        print("⚠️ Clé GEMINI_API_KEY introuvable !")
