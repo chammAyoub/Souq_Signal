@@ -16,3 +16,7 @@ buildNumber.properties
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
 /scraper/.env
+/.idea/inspectionProfiles/Project_Default.xml
+/scraper/scraper.iml
+/scraper/scraper.iml
+/.idea/inspectionProfiles/Project_Default.xml
