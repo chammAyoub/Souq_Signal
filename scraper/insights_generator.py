@@ -64,7 +64,7 @@ df_voitures['prix_median'] = df_voitures.groupby(['marque', 'modele', 'annee_mod
 df_voitures['ecart_pourcentage'] = ((df_voitures['prix'] - df_voitures['prix_median']) / df_voitures['prix_median']) * 100
 
 # On cherche les VRAIES Hmizas (au moins 15% moins chères que le marché)
-hmizas = df_voitures[(df_voitures['ecart_pourcentage'] <= -15) & (df_voitures['prix'] != df_voitures['prix_median'])]
+hmizas = df_voitures[(df_voitures['ecart_pourcentage'] <= -7) & (df_voitures['prix'] != df_voitures['prix_median'])]
 
 if hmizas.empty:
     print("🤷‍♂️ Aucune Hmiza réelle détectée pour le moment.")

@@ -5,6 +5,7 @@ import ma.souqsignal.api.entities.CarDetails;
 import ma.souqsignal.api.repositories.CarDetailsRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -13,7 +14,21 @@ public class CarMarketService {
     private final CarDetailsRepository carDetailsRepository;
 
     public List<CarDetails> saveCarSignal(List<CarDetails> carDetails) {
-        return carDetailsRepository.saveAll(carDetails);
+        List<CarDetails> nouvellesVoitures = new ArrayList<>();
+        int doublons = 0;
+
+        for (CarDetails car : carDetails) {
+            // verifier si on des doublons
+            if (car.getUrlAnnonce() != null && carDetailsRepository.existsByUrlAnnonce(car.getUrlAnnonce())) {
+                doublons++; // si on a un doubl cette car dans la bd -> skip to he next car
+            } else {
+                // sinon -> sauvegarder
+                nouvellesVoitures.add(carDetailsRepository.save(car));
+            }
+        }
+
+        System.out.println("✅ INJECTION DB : " + nouvellesVoitures.size() + " ajouts, " + doublons + " doublons ignorés.");
+        return nouvellesVoitures;
     }
 
     public void deleteCarSignal(Long id){
