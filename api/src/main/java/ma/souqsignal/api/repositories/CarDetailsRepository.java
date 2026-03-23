@@ -20,4 +20,6 @@ public interface CarDetailsRepository extends JpaRepository<CarDetails, Long> {
 
 
     List<CarDetails> findByMarqueAndModeleAndPrixLessThan(String marque, String modele, Double prixMax);
+
+    boolean existsByUrlAnnonce(String urlAnnonce);
 }

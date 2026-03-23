@@ -24,4 +24,6 @@ public abstract class AnnonceBase {
     private LocalDateTime dateAnnonce;
     @Column(length = 1000)
     private String imageURL;
+    @Column(unique = true, length = 1000)
+    private String urlAnnonce;
 }
