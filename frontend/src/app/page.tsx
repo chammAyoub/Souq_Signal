@@ -11,8 +11,8 @@ export default function Home() {
       <Navbar />
       <HeroSection />
       <WhatMovesSection />
-      <SignalsSection />
       <TrendsSection />
+      <SignalsSection />
       <Footer />
     </main>
   );

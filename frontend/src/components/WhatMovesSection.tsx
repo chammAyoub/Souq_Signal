@@ -3,7 +3,39 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
 
-// --- Counter hook ---
+// ─── Types ───────────────────────────────────────────────
+interface Insight {
+  id: number;
+  pourcentage: string;
+  titreRapide: string;
+  description: string;
+  categorie: string;
+  dateCreation: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────
+const CATEGORIES = ['Auto', 'Tech', 'Immo'] as const;
+
+const FALLBACKS: Record<string, Insight> = {
+  Auto: { id: 91, categorie: 'Auto', pourcentage: '+12%', titreRapide: 'Clio 4 demand surges', description: 'Automotive buyers move fast. Anomaly score climbs when supply tightens.', dateCreation: '' },
+  Tech: { id: 92, categorie: 'Tech', pourcentage: '-3%',  titreRapide: 'iPhone 13 margins slip',    description: 'The iPhone 13 market softens. Resellers feel the margin squeeze.',          dateCreation: '' },
+  Immo: { id: 93, categorie: 'Immo', pourcentage: '+5%',  titreRapide: 'Agadir studio rents climb', description: 'Real estate pressure builds steady. Studio apartments move faster now.',    dateCreation: '' },
+};
+
+function pickOneMacroPerCategory(data: Insight[]): Insight[] {
+  const macroOnly = data.filter(
+    (item) => !item.titreRapide.toLowerCase().includes('hmiza')
+  );
+
+  return CATEGORIES.map((cat) => {
+    const match = macroOnly.find(
+      (s) => s.categorie === cat || (cat === 'Immo' && s.categorie === 'Real Estate') || (cat === 'Tech' && s.categorie === 'PC')
+    );
+    return match ?? FALLBACKS[cat];
+  });
+}
+
+// ─── Counter hook ─────────────────────────────────────────
 function useCountUp(target: number, duration = 1.4, inView = false) {
   const [count, setCount] = useState(0);
   useEffect(() => {
@@ -12,7 +44,6 @@ function useCountUp(target: number, duration = 1.4, inView = false) {
     const step = (ts: number) => {
       if (!start) start = ts;
       const progress = Math.min((ts - start) / (duration * 1000), 1);
-      // ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       setCount(Math.round(eased * target));
       if (progress < 1) requestAnimationFrame(step);
@@ -22,35 +53,35 @@ function useCountUp(target: number, duration = 1.4, inView = false) {
   return count;
 }
 
-// --- Image placeholder ---
-function ImagePlaceholder() {
+// ─── Image Component Jdid ─────────────────────────────────
+function BentoImage({ src, alt }: { src: string; alt: string }) {
   return (
-    <div className="flex-1 flex items-center justify-center bg-[#1c2235]">
-      <div className="w-20 h-16 bg-[#2a3147] rounded-xl flex items-center justify-center">
-        <svg viewBox="0 0 24 24" className="w-9 h-9 text-[#3d4a63]" fill="currentColor">
-          <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-1 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
-        </svg>
-      </div>
+    // 7iydna bg-white w padding bach tswira t3mer lblassa kamla
+    <div className="w-full h-full relative group overflow-hidden">
+      <img 
+        src={src} 
+        alt={alt} 
+        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+      />
     </div>
   );
 }
 
-// --- Stat card with counter ---
+// ─── Stat Card ────────────────────────────────────────────
 interface StatCardProps {
-  prefix: string;
-  value: number;
-  suffix: string;
-  title: string;
-  subtitle: string;
-  tall?: boolean;
+  insight: Insight;
   delay?: number;
 }
 
-function StatCard({ prefix, value, suffix, title, subtitle, tall, delay = 0 }: StatCardProps) {
+function StatCard({ insight, delay = 0 }: StatCardProps) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
-  const count = useCountUp(Math.abs(value), 1.2, inView);
-  const display = `${prefix}${count}${suffix}`;
+
+  const raw = insight.pourcentage.replace('%', '').replace('+', '');
+  const numericValue = Math.abs(parseFloat(raw) || 0);
+  const count = useCountUp(numericValue, 1.2, inView);
+  const isNegative = insight.pourcentage.startsWith('-');
+  const display = `${isNegative ? '-' : '+'}${count}%`;
 
   return (
     <motion.div
@@ -59,28 +90,55 @@ function StatCard({ prefix, value, suffix, title, subtitle, tall, delay = 0 }: S
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ delay, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
-      className={`flex flex-col justify-between p-6 border border-[#1e2640] bg-[#0d1526] cursor-default ${
-        tall ? 'sm:row-span-2 min-h-[200px] sm:min-h-[400px]' : 'min-h-[160px] sm:min-h-[190px]'
-      }`}
+      className="flex flex-col justify-between p-6 border border-[#334155] rounded-lg bg-[#111827] shadow-lg shadow-black/40 cursor-default min-h-[160px] sm:min-h-[190px]"
     >
-      <span className="text-3xl sm:text-4xl md:text-5xl xl:text-6xl font-black text-white leading-none tabular-nums">
-        {display}
-      </span>
+      <div className="flex items-start justify-between gap-2">
+        <span
+          className={`text-3xl sm:text-4xl md:text-5xl xl:text-6xl font-black leading-none tabular-nums ${
+            isNegative ? 'text-red-400' : 'text-white'
+          }`}
+        >
+          {display}
+        </span>
+        <span className="text-xs font-semibold text-gray-500 tracking-widest uppercase mt-1">
+          {insight.categorie}
+        </span>
+      </div>
       <div>
-        <p className="text-white font-semibold text-base mb-1">{title}</p>
-        <p className="text-gray-400 text-sm">{subtitle}</p>
+        <p className="text-white font-semibold text-base mb-1">{insight.titreRapide}</p>
+        <p className="text-gray-400 text-sm">{insight.description}</p>
       </div>
     </motion.div>
   );
 }
 
+// ─── Main Section ─────────────────────────────────────────
 export default function WhatMovesSection() {
   const headerRef = useRef(null);
   const headerInView = useInView(headerRef, { once: true, margin: '-60px' });
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+    fetch(`${apiUrl}/api/v1/insights/dashboard`)
+      .then((res) => res.json())
+      .then((data: Insight[]) => {
+        setInsights(pickOneMacroPerCategory(data));
+        setLoading(false);
+      })
+      .catch(() => {
+        setInsights(CATEGORIES.map((cat) => FALLBACKS[cat]));
+        setLoading(false);
+      });
+  }, []);
+
+  const [auto, tech, immo] = insights;
 
   return (
     <section className="bg-[#0B1121] px-10 py-16">
       <div className="max-w-7xl mx-auto">
+
         {/* Header */}
         <div ref={headerRef} className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
           <motion.h2
@@ -102,35 +160,60 @@ export default function WhatMovesSection() {
         </div>
 
         {/* Bento Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 sm:grid-rows-2 gap-3">
-          <StatCard prefix="+" value={12} suffix="%" title="Clio 4 demand surges" subtitle="Automotive buyers move fast here" tall delay={0} />
+        {loading ? (
+          <div className="text-gray-500 text-sm">Loading...</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 sm:grid-rows-2 gap-3">
 
-          {/* image top middle */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-60px' }}
-            transition={{ delay: 0.1, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="min-h-[160px] sm:min-h-[190px] flex border border-[#1e2640] bg-[#111827]"
-          >
-            <ImagePlaceholder />
-          </motion.div>
+            {/* ─── ROW 1 ─── */}
+            
+            {/* Col 1, Row 1: Auto Card */}
+            {auto && <StatCard insight={auto} delay={0} />}
 
-          <StatCard prefix="+" value={5} suffix="%" title="Agadir studio rents climb" subtitle="Real estate pressure builds steady" delay={0.2} />
+            {/* Col 2, Row 1: Immo Image */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ delay: 0.1, duration: 0.55 }}
+              className="min-h-[160px] sm:min-h-[190px] flex border border-[#1e2640] rounded-lg overflow-hidden"
+            >
+              <BentoImage src="/immo.jpg" alt="Real Estate Market" />
+            </motion.div>
 
-          <StatCard prefix="-" value={3} suffix="%" title="iPhone 13 margins contract" subtitle="Tech resale value shifts down" delay={0.15} />
+            {/* Col 3, Row 1: Tech Card */}
+            {tech && <StatCard insight={tech} delay={0.2} />}
 
-          {/* image bottom right */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-60px' }}
-            transition={{ delay: 0.25, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="min-h-[160px] sm:min-h-[190px] flex border border-[#1e2640] bg-[#111827]"
-          >
-            <ImagePlaceholder />
-          </motion.div>
-        </div>
+
+            {/* ─── ROW 2 ─── */}
+            
+            {/* Col 1, Row 2: Auto Image */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ delay: 0.15, duration: 0.55 }}
+              className="min-h-[160px] sm:min-h-[190px] flex border border-[#1e2640] rounded-lg overflow-hidden"
+            >
+              <BentoImage src="/auto.jpg" alt="Auto Market" />
+            </motion.div>
+
+            {/* Col 2, Row 2: Immo Card */}
+            {immo && <StatCard insight={immo} delay={0.25} />}
+
+            {/* Col 3, Row 2: Tech Image */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ delay: 0.3, duration: 0.55 }}
+              className="min-h-[160px] sm:min-h-[190px] flex border border-[#1e2640] rounded-lg overflow-hidden"
+            >
+              <BentoImage src="/tech.jpg" alt="Tech Market" />
+            </motion.div>
+
+          </div>
+        )}
       </div>
     </section>
   );
