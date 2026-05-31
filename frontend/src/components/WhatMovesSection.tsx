@@ -53,10 +53,9 @@ function useCountUp(target: number, duration = 1.4, inView = false) {
   return count;
 }
 
-// ─── Image Component Jdid ─────────────────────────────────
+// ─── Image Component ─────────────────────────────────
 function BentoImage({ src, alt }: { src: string; alt: string }) {
   return (
-    // 7iydna bg-white w padding bach tswira t3mer lblassa kamla
     <div className="w-full h-full relative group overflow-hidden">
       <img 
         src={src} 

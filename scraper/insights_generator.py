@@ -15,6 +15,7 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME")
 gemini_api_key = os.getenv("GEMINI_API_KEY")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080/api/v1/insights")
 
 print("🚀 Démarrage du Générateur d'Insights...")
 
@@ -78,52 +79,53 @@ else:
     # 4. INTELLIGENCE ARTIFICIELLE : GEMINI ET SPRING BOOT
     # ==========================================
     import requests
+    import time # Nzido time bach n3tiw nfs l-Gemini bin kol requete
 
     if gemini_api_key:
         client = genai.Client(api_key=gemini_api_key)
 
-        # On prend la meilleure Hmiza (celle avec le plus grand écart négatif)
-        top_hmiza = hmizas.sort_values(by='ecart_pourcentage').iloc[0]
+        # 🌟 L-7el: Nakhdo Top 5 dyal l-hmizat (les plus rentables)
+        top_hmizas = hmizas.sort_values(by='ecart_pourcentage').head(5)
 
-        prompt = f"""
-        Tu es un expert automobile au Maroc. Analyse cette opportunité réelle :
-        - Véhicule : {top_hmiza['marque']} {top_hmiza['modele']} ({top_hmiza['annee_modele']})
-        - Prix : {top_hmiza['prix']} DH (Médiane: {top_hmiza['prix_median']} DH)
-        - Écart : {abs(round(top_hmiza['ecart_pourcentage']))}% moins cher.
-        - Ville : {top_hmiza['ville']}
-        
-        Rédige une description très courte et percutante (2 phrases max) pour un investisseur. Parle en français.
-        """
+        print(f"\n🚀 Lancement du traitement pour les {len(top_hmizas)} meilleures Hmizas...")
 
-        print(f"\n🤖 Envoi de la {top_hmiza['marque']} {top_hmiza['modele']} à Gemini...")
-        try:
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt
-            )
-            texte_insight = response.text.strip()
-            print("\n✨ INSIGHT GÉNÉRÉ :")
-            print(">" * 20)
-            print(texte_insight)
-            print("<" * 20)
+        # 🌟 L-Boucle li kador 3la kol hmiza
+        for index, hmiza in top_hmizas.iterrows():
+            prompt = f"""
+            Tu es un expert automobile au Maroc. Analyse cette opportunité réelle :
+            - Véhicule : {hmiza['marque']} {hmiza['modele']} ({hmiza['annee_modele']})
+            - Prix : {hmiza['prix']} DH (Médiane: {hmiza['prix_median']} DH)
+            - Écart : {abs(round(hmiza['ecart_pourcentage']))}% moins cher.
+            - Ville : {hmiza['ville']}
+            
+            Rédige une description très courte et percutante (1 phrases max) pour un investisseur. Parle en français.
+            """
 
-            print("\n🚀 Sauvegarde de l'Insight dans Spring Boot...")
-            insight_payload = {
-                "pourcentage": f"-{abs(int(top_hmiza['ecart_pourcentage']))}%",
-                "titreRapide": f"Hmiza : {top_hmiza['marque']} {top_hmiza['modele']}",
-                "description": texte_insight,
-                "categorie": "Auto"
-            }
+            print(f"\n🤖 Envoi de la {hmiza['marque']} {hmiza['modele']} à Gemini...")
+            try:
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt
+                )
+                texte_insight = response.text.strip()
+                print(f"✨ INSIGHT GÉNÉRÉ : {texte_insight[:50]}...") # Kan-affichiw ghir chwya bach mayt3mrch l-terminal
 
-            api_url = "http://localhost:8080/api/v1/insights"
-            res = requests.post(api_url, json=insight_payload)
+                insight_payload = {
+                    "pourcentage": f"-{abs(int(hmiza['ecart_pourcentage']))}%",
+                    "titreRapide": f"Hmiza : {hmiza['marque']} {hmiza['modele']}",
+                    "description": texte_insight,
+                    "categorie": "Auto"
+                }
 
-            if res.status_code == 201:
-                print("✅ BINGO ! L'Insight a été sauvegardé avec succès dans PostgreSQL !")
-            else:
-                print(f"❌ Erreur Spring Boot (Statut {res.status_code}) : {res.text}")
+                res = requests.post(API_BASE_URL, json=insight_payload)
 
-        except Exception as e:
-            print(f"❌ Erreur (Gemini ou Réseau) : {e}")
+                if res.status_code == 201:
+                    print("✅ Sauvegardé avec succès dans PostgreSQL !")
+                else:
+                    print(f"❌ Erreur Spring Boot (Statut {res.status_code}) : {res.text}")
+                time.sleep(2)
+
+            except Exception as e:
+                print(f"❌ Erreur (Gemini ou Réseau) pour la {hmiza['marque']} : {e}")
     else:
         print("⚠️ Clé GEMINI_API_KEY introuvable !")
