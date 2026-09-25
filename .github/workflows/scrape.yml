@@ -2,7 +2,7 @@ name: Souq Signal Daily Extraction
 
 on:
   schedule:
-    # 11:00 AM AND 6:00 PM in MOROCCO.
+    # 10:00 UTC = 11:00 AM in Morocco. 17:00 UTC = 6:00 PM in Morocco.
     - cron: '0 10 * * *' 
     - cron: '0 17 * * *'
   workflow_dispatch:
@@ -11,9 +11,13 @@ jobs:
   scrape-markets:
     runs-on: ubuntu-latest
     
+    defaults:
+      run:
+        working-directory: ./scraper
+        
     strategy:
       fail-fast: false 
-      max-parallel: 1 # Runs one category at a time so they don't mess up the memory file
+      max-parallel: 1
       matrix:
         include:
           - category: cars
