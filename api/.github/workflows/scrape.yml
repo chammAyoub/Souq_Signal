@@ -1,0 +1,58 @@
+name: Souq Signal Daily Extraction
+
+on:
+  schedule:
+    # 11:00 AM AND 6:00 PM in MOROCCO.
+    - cron: '0 10 * * *' 
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape-markets:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false 
+      max-parallel: 1 # Runs one category at a time so they don't mess up the memory file
+      matrix:
+        include:
+          - category: cars
+            pages: 20
+          - category: real_estate
+            pages: 10
+          - category: motos
+            pages: 10
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }} 
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Run Scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TARGET_URL_1_Cars: ${{ secrets.TARGET_URL_1_CARS }}
+          TARGET_URL_1_RealEstate: ${{ secrets.TARGET_URL_1_REALESTATE }}
+          TARGET_URL_1_Motos: ${{ secrets.TARGET_URL_1_MOTOS }}
+          SCRAPER_PAGES: ${{ matrix.pages }} 
+          
+        run: python auto_scraper.py --category ${{ matrix.category }}
+
+      - name: Commit State Memory
+        run: |
+          git config user.name 'GitHub Actions Robot'
+          git config user.email 'actions@github.com'
+          git add scraper_state.json
+          git commit -m "Update state for ${{ matrix.category }} [skip ci]" || echo "No changes to commit"
+          git push

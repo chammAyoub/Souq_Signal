@@ -1,185 +1,292 @@
 import os
 import re
 import time
+import argparse
+import json
+from datetime import datetime
 from dotenv import load_dotenv
 from scrapling.fetchers import StealthySession
-import requests
+from sqlalchemy import create_engine, text
 
+# Load the passwords from the .env file
 load_dotenv()
 
-# ==========================================
-# 🧹 FONCTION DE NETTOYAGE (Data Cleaning - FIX)
-# ==========================================
-def nettoyer_modele(titre):
-    if not titre:
-        return "Inconnu"
+parser = argparse.ArgumentParser(description="Souq Signal Smart Scraper")
+parser.add_argument('--category', choices=['cars', 'real_estate', 'motos'], required=True, help="Category to scrape")
+args = parser.parse_args()
 
-    mots_a_supprimer = ["première main", "premiere main", "1ère main", "1ere main", "1er main", "1ère", "1ere", "jdida", "neuve", "j'accepte reprise", "reprise", "diesel", "essence", "modèle", "modele", "ww", "très bon état", "excellent état", "automatique", "manuelle", "presque", "dedouanee", "dédouanée", "à", "a", "au"]
+print(f"--------- Démarrage du scraper pour la catégorie : {args.category.upper()}-------------")
 
-    titre_clean = titre.lower()
-    titre_clean = titre_clean.replace("✋", "").replace("1✋", "")
-
-    for mot in mots_a_supprimer:
-        pattern = r'\b' + re.escape(mot) + r'\b'
-        titre_clean = re.sub(pattern, ' ', titre_clean)
-
-    titre_clean = re.sub(r'\b20[1-2][0-9]\b', ' ', titre_clean)
-    titre_clean = re.sub(r'[^\w\s-]', ' ', titre_clean)
-
-    return " ".join(titre_clean.split()).title()
-# ==========================================
-
-print("🚀 Démarrage du scraper Massif (Pagination & Isolation)...")
-url_cible_base = os.getenv("TARGET_URL_1")
+if args.category == 'cars':
+    url_cible_base = os.getenv("TARGET_URL_1_Cars")
+elif args.category == 'real_estate':
+    url_cible_base = os.getenv("TARGET_URL_1_RealEstate")
+elif args.category == 'motos':
+    url_cible_base = os.getenv("TARGET_URL_1_Motos")
 
 if not url_cible_base:
-    print("❌ Erreur: TARGET_URL_1 introuvable dans le fichier .env")
-    exit()
+    print(f"❌ Erreur: URL introuvable dans le fichier .env pour la catégorie {args.category}")
+    exit(1)
 
-# N-7iydou ay pagination 9dima f l-URL (.env) bach n-saybouha d-jdida
+DB_URL = os.getenv("DATABASE_URL")
+if not DB_URL:
+    print("❌ Erreur: DATABASE_URL introuvable dans le fichier .env")
+    exit(1)
+engine = create_engine(DB_URL)
+
 url_cible_base = url_cible_base.split('?')[0]
-api_url = os.getenv("API_BACKEND_URL")
 
-# 🌟 CH7AL MN PAGE BGHITI T-SCRAPI ? 🌟
-NOMBRE_DE_PAGES = 20
+# How many pages to scrape in THIS specific run
+NOMBRE_DE_PAGES_A_SCRAPER = int(os.getenv("SCRAPER_PAGES", "10"))
+DELAI_ENTRE_PAGES = 4.0
+PAGE_LIMITE_MAX = 1000 # If we hit page 1000, loop back to 1
 
-print(f"🔍 Cible de base : {url_cible_base}")
+# ==========================================
+# STATE MANAGEMENT (The Memory)
+# ==========================================
+STATE_FILE = "scraper_state.json"
 
-# BOUCLE POUR PAGINATION
-for page_num in range(1, NOMBRE_DE_PAGES + 1):
+def get_start_page(category):
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r") as f:
+            state = json.load(f)
+            return state.get(category, 1)
+    return 1
+
+def save_current_page(category, current_page):
+    state = {}
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r") as f:
+            state = json.load(f)
+            
+    # Reset to 1 if we hit the limit, otherwise save the next page
+    if current_page >= PAGE_LIMITE_MAX:
+        state[category] = 1
+    else:
+        state[category] = current_page
+
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f, indent=4)
+
+# Determine our starting point
+start_page = get_start_page(args.category)
+end_page = start_page + NOMBRE_DE_PAGES_A_SCRAPER
+
+_UP = "ABCDEFGHIJKLMNOPQRSTUVWXYZÉÈÀÂÎÔÛÇ"
+_LO = "abcdefghijklmnopqrstuvwxyzéèàâîôûç"
+_FOLD_TABLE = str.maketrans(
+    "àâäáãåèéêëìíîïòóôöõùúûüçñÀÂÄÁÃÅÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÇÑ",
+    "aaaaaaeeeeiiiiooooouuuucnAAAAAAEEEEIIIIOOOOOUUUUCN"
+)
+
+def _fold(s):
+    if not s: return ""
+    return s.translate(_FOLD_TABLE).lower()
+
+# ==========================================
+# CLEANING
+# ==========================================
+def nettoyer_modele(titre):
+    if not titre: return "Inconnu"
+    mots_a_supprimer = ["première main", "premiere main", "1ère main", "1ere main", "1er main", "1ère", "1ere",
+                         "jdida", "neuve", "j'accepte reprise", "reprise", "diesel", "essence", "modèle", "modele",
+                         "ww", "très bon état", "excellent état", "automatique", "manuelle", "presque",
+                         "dedouanee", "dédouanée", "à", "a", "au"]
+    titre_clean = titre.lower().replace("✋", "").replace("1✋", "")
+    for mot in mots_a_supprimer:
+        titre_clean = re.sub(r'\b' + re.escape(mot) + r'\b', ' ', titre_clean)
+    titre_clean = re.sub(r'\b20[1-2][0-9]\b', ' ', titre_clean)
+    titre_clean = re.sub(r'[^\w\s-]', ' ', titre_clean)
+    return " ".join(titre_clean.split()).title()
+
+def get_numbers_only(text_val):
+    if not text_val: return None
+    digits = re.sub(r'\D', '', text_val)
+    return int(digits) if digits else None
+
+def extract_price(carte):
+    raw = carte.xpath('.//span[translate(normalize-space(.), "dh", "DH")="DH"]/preceding-sibling::*[1]/text()').get()
+    if raw:
+        digits = re.sub(r'\D', '', raw)
+        if digits: return float(digits)
+    for node in carte.xpath('.//*[contains(translate(., "dh", "DH"), "DH")]/text()').getall():
+        if re.search(r'dh\s*/\s*mois', node, re.IGNORECASE): continue
+        m = re.search(r'([\d\s.,]{2,})\s*dh\b', node, re.IGNORECASE)
+        if m:
+            digits = re.sub(r'\D', '', m.group(1))
+            if digits: return float(digits)
+    return None
+
+def extract_ville(carte):
+    ville = carte.xpath(
+        f'.//span[contains(translate(., "{_UP}", "{_LO}"), "il y a") '
+        f'or contains(translate(., "{_UP}", "{_LO}"), "aujourd") '
+        f'or contains(translate(., "{_UP}", "{_LO}"), "hier")]'
+        '/preceding-sibling::span[1]/text()'
+    ).get()
+    return ville.strip() if ville else "Inconnue"
+
+def extract_badge(carte, title_name):
+    needle = _fold(title_name)
+    spans_avec_title = carte.xpath('.//span[@title]')
+    for span in spans_avec_title:
+        span_title = span.xpath('@title').get() or ''
+        if _fold(span_title) == needle:
+            text_val = span.xpath('text()').get()
+            return text_val.strip() if text_val else None
+    return None
+
+ids_inseres = []
+
+# ==========================================
+# START SCRAPING (using the memory state)
+# ==========================================
+for page_num in range(start_page, end_page):
     url_page = f"{url_cible_base}?o={page_num}"
-    print(f"\n📄 --- SCRAPING DE LA PAGE {page_num}/{NOMBRE_DE_PAGES} ---")
-    print(f"🔍 Lien : {url_page}")
+    print(f"\n📄 --- PAGE {page_num} (Objectif: {end_page - 1}) ---")
+
+    stats = {"lues": 0, "sans_titre": 0, "sans_prix": 0, "valides": 0, "erreurs": 0}
 
     try:
-        with StealthySession(headless=False, solve_cloudflare=True) as session:
+        with StealthySession(headless=True, solve_cloudflare=True) as session:
             page = session.fetch(url_page)
-            print(f"📝 Statut HTTP : {page.status}")
+            cartes_annonces = page.css('a[data-testid^="ad-card-v2-"]')
+            if not cartes_annonces:
+                cartes_annonces = page.xpath('//a[@href and .//h3]')
 
-            cartes_annonces = page.css('a.sc-1jge648-0')
-            print(f"🚗 {len(cartes_annonces)} annonces trouvées sur cette page.")
+            if len(cartes_annonces) == 0:
+                print("⚠️ Aucune annonce trouvée sur cette page. Réinitialisation de la mémoire à la page 1.")
+                save_current_page(args.category, 1)
+                break
 
-            vehicules_valides = []
-            titres_vus = set()
+            valides = []
 
-            for i, carte in enumerate(cartes_annonces):
-                url_annonce = carte.xpath('@href').get()
-
-                textes_bruts = carte.xpath('.//text()')
-                texte_complet = ""
-                for t in textes_bruts:
-                    valeur_texte = t.get() if hasattr(t, 'get') else str(t)
-                    if valeur_texte and valeur_texte.strip():
-                        texte_complet += valeur_texte.strip() + " "
-
-                titres = carte.css('p.sc-1x0vz2r-0.iHApav')
-                villes = carte.css('p.sc-1x0vz2r-0.layWaX')
-
-                if not titres or not villes:
-                    continue
-
-                titre = titres[0].text
-
-                if titre in titres_vus:
-                    continue
-
-                ville = villes[-1].text.replace("Voitures d'occasion dans ", "").strip()
-
-                if "demander le prix" in texte_complet.lower():
-                    continue
-
-                match_prix = re.search(r'((?:\d[\s\u202f\xa0]*)+)DH', texte_complet, re.IGNORECASE)
-
-                if not match_prix:
-                    continue
-
-                prix_brut = match_prix.group(1)
-                prix_propre = re.sub(r'[^\d]', '', prix_brut)
-
+            for carte in cartes_annonces:
+                stats["lues"] += 1
                 try:
-                    prix_float = float(prix_propre)
+                    url_annonce = carte.xpath('@href').get()
+                    titre_el = carte.css('h3')
+                    titre = titre_el[0].text.strip() if titre_el else None
 
-                    annee_el = carte.css('span[title="Année-Modèle"]')
-                    km_el = carte.css('span[title="Kilométrage"]')
-                    boite_el = carte.css('span[title*="Boite de vitesses"], span[title*="Boîte de vitesses"]')
-                    carburant_el = carte.css('span[title="Type de carburant"]')
+                    if not titre:
+                        stats["sans_titre"] += 1
+                        continue
 
-                    urls_images = carte.xpath('.//img/@src | .//img/@srcset | .//img/@data-src').getall()
-                    image_url = None
+                    prix = extract_price(carte)
+                    if not prix:
+                        stats["sans_prix"] += 1
+                        continue
 
-                    for url_brute in urls_images:
-                        url_clean = url_brute.split(" ")[0].strip()
-                        if url_clean.startswith("http") and "avatar" not in url_clean.lower() and "stores" not in url_clean.lower():
-                            image_url = url_clean
-                            break
+                    ville = extract_ville(carte)
 
+                    image_url = carte.xpath('.//img/@src | .//img/@srcset | .//img/@data-src').get()
+                    if image_url:
+                        image_url = image_url.split(" ")[0].strip()
 
-                    annee_brute = annee_el[0].text.strip() if annee_el else None
-                    annee_finale = None
-
-                    if annee_brute and annee_brute.isdigit():
-                        annee_finale = int(annee_brute)
-                    else:
-                        # PLAN B : On cherche l'année dans le titre
-                        match_annee = re.search(r'\b(19[8-9]\d|20[0-2]\d)\b', titre)
-                        if match_annee:
-                            annee_finale = int(match_annee.group(1))
-
-                    boite = boite_el[0].text.strip() if boite_el else None
-                    carburant = carburant_el[0].text.strip() if carburant_el else None
-
-                    km_float = None
-                    if km_el:
-                        km_brut = km_el[0].text
-                        km_propre = re.sub(r'[^\d]', '', km_brut)
-                        if km_propre:
-                            km_float = float(km_propre)
-
-                    titres_vus.add(titre)
-
-                    # 6. CONSTRUCTION DE L'OBJET FINAL
-                    vehicule_obj = {
-                        "titreAnnonce": titre,
-                        "prix": prix_float,
+                    item = {
+                        "titre": titre,
+                        "prix": prix,
                         "ville": ville,
-                        "imageURL": image_url,
-                        "urlAnnonce": url_annonce,
-                        "marque": titre.split(" ")[0].capitalize() if titre else "Inconnue",
-                        "modele": nettoyer_modele(titre),
-                        "anneeModele": annee_finale,
-                        "kilometrage": km_float,
-                        "carburant": carburant,
-                        "boiteVitesse": boite
+                        "date": datetime.now(),
+                        "image": image_url,
+                        "url": url_annonce
                     }
+                    
+                    if args.category == 'cars':
+                        item["marque"] = titre.split(" ")[0].capitalize()
+                        item["modele"] = nettoyer_modele(titre)
+                        item["annee"] = get_numbers_only(extract_badge(carte, "Année-Modèle"))
+                        item["km"] = get_numbers_only(extract_badge(carte, "Kilométrage"))
+                        item["carburant"] = extract_badge(carte, "Type de carburant")
+                        item["boite"] = extract_badge(carte, "Boîte de vitesses")
 
-                    vehicules_valides.append(vehicule_obj)
-                    print(f"✅ {vehicule_obj['marque']} {vehicule_obj['modele']} | {prix_float} DH | Année: {annee_finale}")
+                    elif args.category == 'real_estate':
+                        item["chambres"] = get_numbers_only(extract_badge(carte, "Chambres"))
+                        item["surface"] = get_numbers_only(extract_badge(carte, "Surface totale"))
+                        item["etage"] = get_numbers_only(extract_badge(carte, "Étage"))
+                        item["type"] = "Appartement"
+                        item["secteur"] = ville
 
-                except ValueError:
+                    elif args.category == 'motos':
+                        item["marque"] = titre.split(" ")[0].capitalize()
+                        item["modele"] = nettoyer_modele(titre)
+                        item["annee"] = get_numbers_only(extract_badge(carte, "Année-Modèle"))
+                        item["km"] = get_numbers_only(extract_badge(carte, "Kilométrage"))
+                        item["cylindree"] = extract_badge(carte, "Cylindrée (cm3)")
+
+                    valides.append(item)
+                    stats["valides"] += 1
+
+                except Exception as e:
+                    stats["erreurs"] += 1
                     continue
 
-            print(f"\n🚀 Envoi de {len(vehicules_valides)} véhicules de la Page {page_num} vers Spring Boot...")
+            print(f"📊 Page {page_num}: {stats['lues']} lues | {stats['valides']} valides")
+            
+            with engine.begin() as conn:
+                for v in valides:
+                    try:
+                        with conn.begin_nested():
+                            query_base = text("""
+                                INSERT INTO annonce_base (titre_annonce, prix, ville, date_annonce, imageurl, url_annonce)
+                                VALUES (:titre, :prix, :ville, :date, :image, :url)
+                                ON CONFLICT (url_annonce) DO NOTHING
+                                RETURNING id_annoce
+                            """)
+                            result = conn.execute(query_base, v)
+                            row = result.fetchone()
 
-            if not api_url:
-                print("⚠️ Attention : API_BACKEND_URL n'est pas définie dans le .env. Rien ne sera envoyé.")
-            elif len(vehicules_valides) > 0:
-                reponse = requests.post(api_url, json=vehicules_valides)
-                if reponse.status_code in [200, 201]:
-                    print(f"✅ BINGO ! Page {page_num} sauvegardée avec succès dans la Base de Données !")
-                else:
-                    print(f"❌ Le backend a refusé les données (Statut {reponse.status_code}) : {reponse.text}")
-            else:
-                print("ℹ️ Aucun véhicule valide à envoyer sur cette page.")
+                            if row:
+                                v["id"] = row[0]
+                                ids_inseres.append(v["id"]) 
 
+                                if args.category == 'cars':
+                                    q = text("INSERT INTO car_details (id_annonce, marque, modele, annee_modele, kilometrage, carburant, boite_vitesse) VALUES (:id, :marque, :modele, :annee, :km, :carburant, :boite)")
+                                    conn.execute(q, v)
+                                elif args.category == 'real_estate':
+                                    q = text("INSERT INTO estate_details (id_annonce, chambres, surface_habitable, etage, type_appartement, secteur) VALUES (:id, :chambres, :surface, :etage, :type, :secteur)")
+                                    conn.execute(q, v)
+                                elif args.category == 'motos':
+                                    q = text("INSERT INTO moto_details (id_annonce, marque, modele, annee_modele, kilometrage, cylindree) VALUES (:id, :marque, :modele, :annee, :km, :cylindree)")
+                                    conn.execute(q, v)
+                    except Exception as e:
+                        continue
+                        
     except Exception as e:
-        print(f"❌ Erreur critique sur la page {page_num} : {e}")
-        print("⏭️ Le Bot passe à la page suivante...")
+        print(f"❌ Erreur critique sur la page: {e}")
 
-    # Pause avant de passer à la page suivante (sauf pour la dernière page)
-    if page_num < NOMBRE_DE_PAGES:
-        print("⏳ Pause de 4 secondes pour ne pas alerter les serveurs d'Avito...")
-        time.sleep(4)
+    # Update the memory state to the next page!
+    save_current_page(args.category, page_num + 1)
+    time.sleep(DELAI_ENTRE_PAGES)
 
-print("\n" + "="*50)
-print("🏁 FIN DU SCRAPING MASSIF ! MISSION ACCOMPLIE 🦅")
-input("\n⏳ Appuyez sur Entrée dans le terminal pour fermer le navigateur...")
+print("----------------- FIN DU SCRAPING ! -----------------------------")
+
+if ids_inseres:
+    print("\n---------------------------- Lancement de l'audit de qualité des données... ---------------------------")
+    with engine.connect() as conn:
+        id_list = tuple(ids_inseres)
+        if len(id_list) == 1: id_list = f"({id_list[0]})"
+            
+        if args.category == 'cars':
+            audit_query = text(f"SELECT COUNT(*) FROM car_details WHERE id_annonce IN {id_list} AND annee_modele IS NULL")
+            total = len(ids_inseres)
+            null_count = conn.execute(audit_query).scalar()
+            null_percentage = (null_count / total) * 100
+            print(f" {null_percentage:.1f}% des nouvelles voitures n'ont pas d'année.")
+            if null_percentage > 50: raise Exception("🚨 ALERTE: Structure HTML modifiée (Cars).")
+
+        elif args.category == 'real_estate':
+            audit_query = text(f"SELECT COUNT(*) FROM estate_details WHERE id_annonce IN {id_list} AND chambres IS NULL")
+            total = len(ids_inseres)
+            null_count = conn.execute(audit_query).scalar()
+            null_percentage = (null_count / total) * 100
+            print(f" {null_percentage:.1f}% des nouveaux appartements n'ont pas de chambres.")
+            if null_percentage > 50: raise Exception("🚨 ALERTE: Structure HTML modifiée (Immo).")
+
+        elif args.category == 'motos':
+            audit_query = text(f"SELECT COUNT(*) FROM moto_details WHERE id_annonce IN {id_list} AND annee_modele IS NULL")
+            total = len(ids_inseres)
+            null_count = conn.execute(audit_query).scalar()
+            null_percentage = (null_count / total) * 100
+            print(f" {null_percentage:.1f}% des nouvelles motos n'ont pas d'année.")
+            if null_percentage > 50: raise Exception("🚨 ALERTE: Structure HTML modifiée (Motos).")
