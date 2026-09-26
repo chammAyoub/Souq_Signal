@@ -2,9 +2,9 @@ name: Souq Signal Daily Extraction
 
 on:
   schedule:
-    # 10:00 UTC = 11:00 AM in Morocco. 17:00 UTC = 6:00 PM in Morocco.
-    - cron: '0 10 * * *' 
-    - cron: '0 17 * * *'
+    # Décalage pour éviter la congestion des serveurs GitHub
+    - cron: '14 10 * * *' 
+    - cron: '22 17 * * *'
   workflow_dispatch:
 
 jobs:
