@@ -3,10 +3,15 @@ import re
 import time
 import argparse
 import json
+import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from scrapling.fetchers import StealthySession
 from sqlalchemy import create_engine, text
+
+
+# Désactive tous les messages INFO et WARNING des bibliothèques externes
+logging.disable(logging.WARNING)
 
 # Load the passwords from the .env file
 load_dotenv()
