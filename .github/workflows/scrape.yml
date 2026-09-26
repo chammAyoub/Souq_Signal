@@ -11,13 +11,9 @@ jobs:
   scrape-markets:
     runs-on: ubuntu-latest
     
-    defaults:
-      run:
-        working-directory: ./scraper
-        
     strategy:
       fail-fast: false 
-      max-parallel: 1
+      max-parallel: 1 # Runs one by one
       matrix:
         include:
           - category: cars
@@ -32,6 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }} 
+          fetch-depth: 0 # Required so the robot can pull latest changes
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -42,6 +39,13 @@ jobs:
         run: |
           pip install -r requirements.txt
           playwright install chromium
+
+      - name: Sync Latest State
+        run: |
+          git config user.name 'GitHub Actions Robot'
+          git config user.email 'actions@github.com'
+          git config pull.rebase true
+          git pull origin main # Grabs the memory file saved by the previous matrix job!
 
       - name: Run Scraper
         env:
@@ -55,8 +59,6 @@ jobs:
 
       - name: Commit State Memory
         run: |
-          git config user.name 'GitHub Actions Robot'
-          git config user.email 'actions@github.com'
           git add scraper_state.json
           git commit -m "Update state for ${{ matrix.category }} [skip ci]" || echo "No changes to commit"
           git push
