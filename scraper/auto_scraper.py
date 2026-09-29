@@ -232,6 +232,7 @@ for page_num in range(start_page, end_page):
                 for v in valides:
                     try:
                         with conn.begin_nested():
+                            # 1. Insertion de l'annonce mère (avec DO NOTHING si elle existe déjà)
                             query_base = text("""
                                 INSERT INTO annonce_base (titre_annonce, prix, ville, date_annonce, imageurl, url_annonce)
                                 VALUES (:titre, :prix, :ville, :date, :image, :url)
@@ -241,6 +242,16 @@ for page_num in range(start_page, end_page):
                             result = conn.execute(query_base, v)
                             row = result.fetchone()
 
+                            # 2. (NOUVEAU) Enregistrement inconditionnel de l'observation de prix
+                            # Cela s'exécute toujours, même si l'annonce existe déjà !
+                            query_obs = text("""
+                                INSERT INTO price_observations (url_annonce, prix, categorie)
+                                VALUES (:url, :prix, :categorie)
+                            """)
+                            v["categorie"] = args.category # Ajout de la catégorie au dictionnaire
+                            conn.execute(query_obs, v)
+
+                            # 3. Insertion des détails spécifiques SEULEMENT si c'est une nouvelle annonce
                             if row:
                                 v["id"] = row[0]
                                 ids_inseres.append(v["id"]) 
