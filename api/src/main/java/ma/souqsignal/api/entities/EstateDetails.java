@@ -16,6 +16,7 @@ import lombok.Setter;
 public class EstateDetails extends AnnonceBase {
     private Double surfaceHabitable;
     private Integer chambres;
+    private Integer salons;
     private Integer etage;
     private String typeAppartement;
     private String secteur;

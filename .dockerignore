@@ -1,0 +1,11 @@
+**
+!api/
+!api/pom.xml
+!api/src/
+!api/src/**
+**/.env
+**/.env.*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.jks
